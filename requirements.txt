@@ -1,0 +1,20 @@
+# Web 框架
+fastapi
+uvicorn[standard]
+python-multipart
+
+# AI 服务
+zhipuai
+
+# LangChain 生态
+langgraph
+langchain
+langchain-openai
+langchain-core
+
+# 工具库
+pydantic
+python-dotenv
+
+# 音频处理
+pydub
