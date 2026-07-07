@@ -10,9 +10,13 @@ FastAPI 主程序 - 会议纪要 Agent
 from pathlib import Path
 from uuid import uuid4
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from app.stt import speech_to_text
 from fastapi.responses import FileResponse
+
+from app.stt import speech_to_text
 from app.graph import run_workflow
+from app.utils import STTError, WorkflowError
+from app.config import UPLOADS_DIR, OUTPUTS_DIR, ALLOWED_AUDIO_TYPES, MAX_FILE_SIZE
+
 
 # 创建 FastAPI 应用实例
 app = FastAPI(
@@ -20,14 +24,6 @@ app = FastAPI(
     description="上传会议录音，自动生成结构化会议纪要",
     version="1.0.0",
 )
-
-UPLOADS_DIR = Path("uploads")
-OUTPUTS_DIR = Path("outputs")
-UPLOADS_DIR.mkdir(exist_ok=True)
-OUTPUTS_DIR.mkdir(exist_ok=True)
-
-# 运行用户上传的音频格式
-ALLOWED_AUDIO_TYPES = {".wav", ".mp3", ".m4a"}
 
 # 定义路由
 @app.get("/")
@@ -55,21 +51,21 @@ async def upload_audio(file: UploadFile = File(...)):
     if suffix not in ALLOWED_AUDIO_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"不支持的文件格式 '{suffix}。 请上传 {'/'.join(ALLOWER_AUDIO_TYPES)}。"
+            detail=f"不支持的文件格式 '{suffix}。 请上传 {','.join(ALLOWED_AUDIO_TYPES)}。"
         )
 
     # 保存音频文件
     unique_id = str(uuid4())
     audio_filename = f"{unique_id}{suffix}"
-    audio_path = UPLOADS_DIR/audio_filename
+    audio_path = UPLOADS_DIR / audio_filename
 
     try:
         content = await file.read()
 
-        if len(content) > 25 * 1024 * 1024:
+        if len(content) > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=413,
-                detail="文件大小不能超过 25MB"
+                detail=f"文件大小不能超过 {MAX_FILE_SIZE // (1024*1024)}"
             )
         audio_path.write_bytes(content)
         # 临时调试
@@ -78,7 +74,7 @@ async def upload_audio(file: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
+            status_code=500,     # Internal Server Error
             detail=f"文件保持失败: {e}"
         )
 
@@ -90,7 +86,7 @@ async def upload_audio(file: UploadFile = File(...)):
             status_code=500,
             detail=f"音频文件保存后无法找到。"
         )
-    except Exception as e:
+    except STTError as e:
         raise HTTPException(
             status_code=500,
             detail=f"语音识别失败: {e}",
@@ -99,7 +95,7 @@ async def upload_audio(file: UploadFile = File(...)):
     # 调用 LangGraph 工作流
     try:
         result = run_workflow(transcript)
-    except Exception as e:
+    except WorkflowError as e:
         raise HTTPException(
             status_code=500,
             detail=f"会议纪要生成失败：{e}"

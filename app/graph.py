@@ -3,10 +3,12 @@ LangGraph 工作流模块
 
 将会议转录文本转换为机构化纪要： 摘要 -> 待办 -> 决策 -> Markdown 格式化。
 """
+import json
+import logging
 from typing import TypedDict, Optional
 from langgraph.graph import StateGraph, START, END
 from langchain_core.prompts import ChatPromptTemplate
-from app.utils import get_llm
+from app.utils import get_llm, WorkflowError
 
 # 初始化 LLM
 llm = get_llm(temperature=0.2)
@@ -42,6 +44,7 @@ def summarize_node(state: MeetingState) -> dict:
     response = chain.invoke({"transcript": state["transcript"]})
     return {"summary": response.content.strip()}
 
+logger = logging.getLogger(__name__)
 def action_items_node(state: MeetingState) -> dict:
     """
     提取待办事项并格式化为 Markdown 任务列表
@@ -60,37 +63,44 @@ def action_items_node(state: MeetingState) -> dict:
     {"action_items": ["- [ ] 前端开发 (@张工) 周三"]}
     """
     prompt = ChatPromptTemplate.from_template(
-        """从以下会议记录中提取所有待办事项。
-    
-    输出格式(每行一条，严格遵循此格式):
-    - [ ] 任务描述（@负责人）截止日期
+        """你是一个会议助手。请从以下会议记录中提取所有待办事项。
+    你必须**只返回一个 JSON 数组**，格式如下：
+    [
+        {{
+            "task": "任务描述",
+            "assignee": "负责人姓名（未提及则填"未指定"）",
+            "deadline": "截止日期（未提及则填"未指定"）"
+        }}
+    ]
     
     要求：
-    - 如果提到负责人，用 @负责人标注
-    - 如果提到截止日期，写上截止日期
-    - 如果未提及负责人或日期，写「待定」
-    - 每个待办事项单独一行
-    - 如果没有待办事项，输出「（无待办事项）」
+    - 如果没有待办事项，返回空数组 []
+    - 不要加任何解释、标记、或额外文字，只输出纯 JSON
     
     会议记录：
-    {transcript}
-    
-    待办事项："""
+    {transcript}"""
     )
 
     chain = prompt | llm
     response = chain.invoke({"transcript": state["transcript"]})
     raw_text = response.content.strip()
 
-    # 过滤空行和纯空白行
-    if raw_text == "（无待办事项）":
-        items = []
-    else:
-        items = [
-            line.strip() for line in raw_text.split("\n") if line.strip()
-        ]
+    # 解析 JSON，失败则降级
+    try:
+        items_data = json.loads(raw_text)
+    except json.JSONDecoderError:
+        logger.warning("待办事项 JSON 解析失败，原始输出：%s", raw_text)
+        items_data = []
 
-    return {"action_items": items}
+    # 转 Markdown 列表字符串格式
+    action_items = []
+    for item in items_data:
+        task = item.get("task", "")
+        assignee = item.get("assignee", "未指定")
+        deadline = item.get("deadline", "未指定")
+        action_items.append(f"- [ ] {task} (@{assignee}) {deadline}")
+
+    return {"action_items": action_items}
 
 def decisions_node(state: MeetingState) -> dict:
     """
@@ -193,4 +203,7 @@ def run_workflow(transcript: str) -> MeetingState:
     执行完整工作流，返回包含 final_output 的完整状态。
     """
     app = build_workflow()
-    return app.invoke({"transcript": transcript})
+    try:
+        return app.invoke({"transcript": transcript})
+    except Exception as e:
+        raise WorkflowError(f"纪要生成失败：{e}") from e

@@ -15,6 +15,7 @@ from pydub import AudioSegment
 from pydub.silence import split_on_silence
 from zhipuai import ZhipuAI
 from dotenv import load_dotenv
+from app.utils import STTError
 
 load_dotenv()
 
@@ -73,13 +74,18 @@ def speech_to_text(audio_path: str, max_chunk_len: int = 28000) -> str:
         chunk.export(temp_wav, format=("wav"))
 
         with open(temp_wav, "rb") as audio_file:
-            response = client.audio.transcriptions.create(
-                model="glm-asr-2512",
-                file=audio_file
-            )
+            try:
+                response = client.audio.transcriptions.create(
+                    model="glm-asr-2512",
+                    file=audio_file
+                )
 
-            text = response.text if hasattr(response, 'text') else str(response)
-            full_text.append(text)
+                text = response.text if hasattr(response, 'text') else str(response)
+                full_text.append(text)
+            except Exception as e:
+                if os.path.exists(temp_wav):
+                    os.remove(temp_wav)
+                raise STTError(f"语音识别失败（第 {i+1} 段： {e}") from e
 
         print(f" 第 {i+1}/{len(final_chunks)} 段识别完成")
         os.remove(temp_wav)
