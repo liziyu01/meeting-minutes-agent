@@ -13,7 +13,7 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 OUTPUTS_DIR.mkdir(exist_ok=True)
 
 # ===== 音频配置 =====
-ALLOWED_AUDIO_TYPES = {"wav", "mp3", "m4a"}
+ALLOWED_AUDIO_TYPES = {".wav", ".mp3", ".m4a"}
 MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB
 CHUNK_LENGTH = 28000  # 音频分段长度（毫秒）
 

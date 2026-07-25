@@ -14,10 +14,10 @@ __all__ = ["get_llm"]
 
 load_dotenv()
 
-ZHIPUAI_API_KEY = os.getenv("zhipuai_api_key")
+ZHIPUAI_API_KEY = os.getenv("ZHIPUAI_API_KEY")
 if not ZHIPUAI_API_KEY:
     raise ValueError(
-        "未找到 ZHIPU_API_KEY, 请检查 .env 文件"
+        "未找到 ZHIPUAI_API_KEY, 请检查 .env 文件"
     )
 
 def get_llm(temperature: float = TEMPERATURE, timeout = TIMEOUT) -> ChatOpenAI:

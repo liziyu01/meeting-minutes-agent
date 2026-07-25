@@ -47,11 +47,10 @@ async def upload_audio(file: UploadFile = File(...)):
     """
     # 验证文件格式
     suffix = Path(file.filename).suffix.lower()
-
     if suffix not in ALLOWED_AUDIO_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"不支持的文件格式 '{suffix}。 请上传 {','.join(ALLOWED_AUDIO_TYPES)}。"
+            detail=f"不支持的文件格式 {suffix}。 请上传 {','.join(ALLOWED_AUDIO_TYPES)}。"
         )
 
     # 保存音频文件

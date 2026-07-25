@@ -19,7 +19,7 @@ from app.utils import STTError
 
 load_dotenv()
 
-ZHIPUAI_API_KEY = os.getenv("zhipuai_api_key")
+ZHIPUAI_API_KEY = os.getenv("ZHIPUAI_API_KEY")
 
 if not ZHIPUAI_API_KEY:
     raise ValueError(

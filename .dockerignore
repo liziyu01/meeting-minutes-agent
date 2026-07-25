@@ -1,0 +1,23 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# 临时文件
+uploads/
+outputs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# 测试
+tests/
+test_*
