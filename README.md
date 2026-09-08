@@ -21,43 +21,76 @@
 
 ---
 
+## 飞书机器人集成
+
+支持在飞书中通过语音消息一键生成会议纪要。
+
+### 配置飞书应用
+1. 在飞书开放平台创建企业自建应用，启用机器人能力
+2. 获取 `App ID` 和 `App Secret`
+3. 在权限管理中开启以下权限：
+   - `im:message`
+   - `im:message.p2p_msg:readonly`
+   - `im:resource`
+4. 在事件订阅中配置 `im.message.receive_v1` 事件
+
+### 环境变量配置
+在 `.env` 文件中添加：
+
+```env
+# 飞书应用凭证
+app_id=你的AppID
+app_secret=你的AppSecret
+```
+
+### 启动机器人
+```bash
+python feishu_bot.py
+```
+
+在飞书中给机器人发送语音消息，即可自动生成会议纪要并回复。
+
+---
+
 ## 技术架构
+
 ```text
 ┌─────────────┐
-│ 用户上传音频  
-│ (.wav/.mp3) 
+│ 用户上传音频  │
+│ (.wav/.mp3)  │
 └──────┬──────┘
        ▼
 ┌─────────────┐
-│ Streamlit   
-│ 前端 :8501  
+│ Streamlit    │
+│ 前端 :8501   │
 └──────┬──────┘
        │ HTTP POST
        ▼
 ┌─────────────┐
-│ FastAPI     
-│ 后端 :8000   
+│ FastAPI      │
+│ 后端 :8000   │
 └──────┬──────┘
        ▼
 ┌─────────────┐
-│ STT 模块    
-│ GLM API     
+│ STT 模块     │
+│ GLM API      │
 └──────┬──────┘
        ▼
 ┌─────────────┐
-│ LangGraph   
-│ 工作流       
+│ LangGraph    │
+│ 工作流        │
 └──────┬──────┘
        ▼
 ┌─────────────┐
-│ 摘要 → 待办  
-│ 决策 → 格式化 
+│ 摘要 → 待办  │
+│ 决策 → 格式化 │
 └──────┬──────┘
        ▼
 ┌─────────────┐
-│ 返回前端展示  
+│ 返回前端展示  │
 └─────────────┘
 ```
+
 ---
 
 ## 快速开始
@@ -72,10 +105,12 @@ git clone https://github.com/liziyu01/meeting-minutes-agent.git
 cd meeting-minutes-agent
 ```
 
-### 2. 配置 API Key
+### 2. 配置环境变量
 ```bash
-# 创建 .env 文件，写入你的智谱 API Key
-echo "ZHIPUAI_API_KEY=你的key" > .env
+# 创建 .env 文件，写入所需环境变量
+ZHIPUAI_API_KEY=你的智谱APIKey
+app_id=你的飞书AppID
+app_secret=你的飞书AppSecret
 ```
 
 ### 3. 启动服务
@@ -95,8 +130,6 @@ docker-compose down
 ---
 
 ## 本地开发
-
-如果你想在本地开发而非 Docker：
 
 ```bash
 # 1. 创建虚拟环境
@@ -155,10 +188,12 @@ meeting-minutes-agent/
 │   ├── stt.py           # 语音转文字模块
 │   ├── graph.py         # LangGraph 工作流
 │   ├── utils.py         # 工具函数 & 异常定义
-│   ├── config.py        # 配置文件
+│   ├── feishu_bot.py    # 飞书机器人集成
 │   └── frontend.py      # Streamlit 前端
 ├── tests/
-│   └── test_graph.py    # 单元测试
+│   ├── test_graph.py    # 单元测试
+│   ├── eval_cases.json  # 评测用例集
+│   └── run_eval.py      # 评测运行脚本
 ├── uploads/             # 上传的音频（不提交 Git）
 ├── outputs/             # 生成的纪要（不提交 Git）
 ├── Dockerfile
@@ -170,15 +205,41 @@ meeting-minutes-agent/
 ---
 
 ## 运行测试
+
 ```bash
 pytest tests/
 ```
 
+---
+
+## 评测集
+
+项目包含 11 条核心评测用例，覆盖正向、边界、压力三大类：
+
+| 类别 | 用例数 | 说明 |
+| :--- | :--- | :--- |
+| 正向测试 | 3 | 验证标准会议场景正常生成纪要 |
+| 边界测试 | 5 | 验证闲聊/超短文本等无效输入被正确拦截 |
+| 压力测试 | 3 | 验证超长文本、特殊字符等极端场景稳定性 |
+
+运行评测：
+```bash
+python tests/run_eval.py
+```
+
+引入 LLM as Judge 前置裁判后，边界防御准确率从 0% 提升至 100%。
+
+---
 
 ## 许可
+
 MIT License
 
 ---
 
 ## 作者
+
 [Li Hong] - [https://github.com/liziyu01]
+```
+
+---

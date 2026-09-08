@@ -198,12 +198,70 @@ def build_workflow():
 
     return workflow.compile()
 
+# llm as judge
+def is_valid_meeting_content(text: str) -> tuple[bool, str]:
+    """
+    使用 LLM 判断输入是否为有效的会议记录内容。
+
+    Returns:
+        (is_valid: bool, reason: str)
+    """
+    judge_llm = get_llm(temperature=0.1)  # 低温度，确保判断稳定
+
+    judge_prompt = ChatPromptTemplate.from_template(
+        """你是一个专业的会议记录内容审核员。请判断以下文本是否属于有效的会议记录或会议讨论内容。
+
+有效的会议记录应包含以下特征之一：
+- 提到会议、讨论、决定、决议等明确的会议场景词汇
+- 涉及项目进度、任务分配、方案评审、问题解决等工作内容
+- 包含多人讨论的对话形式，或明确的决策和待办事项
+
+无效的会议记录特征：
+- 单纯的日常问候、闲聊（如"你好"、"今天天气真好"）
+- 一句话的简单陈述，没有实质内容
+- 不涉及任何工作或会议相关话题
+
+请只输出 JSON 格式，不要输出任何其他内容：
+{{
+    "is_valid": true/false,
+    "reason": "判断理由（一句话）"
+}}
+
+待判断的文本：
+{text}"""
+    )
+
+    chain = judge_prompt | judge_llm
+    response = chain.invoke({"text": text})
+
+    try:
+        result = json.loads(response.content.strip())
+        return result.get("is_valid", False), result.get("reason", "")
+    except json.JSONDecodeError:
+        # 如果 LLM 返回的 JSON 解析失败，默认按有效处理（避免误伤）
+        return True, "无法解析判断结果，默认放行"
+
+
 def run_workflow(transcript: str) -> MeetingState:
     """
     执行完整工作流，返回包含 final_output 的完整状态。
+    前置：使用 LLM as Judge 判断输入是否为有效会议内容。
     """
+    transcript = transcript.strip()
+
+    # ===== 前置裁判：LLM as Judge =====
+    is_valid, reason = is_valid_meeting_content(transcript)
+
+    if not is_valid:
+        friendly_message = f"⚠️ 检测到非会议内容，已跳过生成。\n\n💡 建议：请提供包含会议讨论、决策或待办事项的录音或文本。\n\n📌 判断依据：{reason}"
+        return {
+            "transcript": transcript,
+            "summary": friendly_message,
+            "action_items": [],
+            "decisions": [],
+            "final_output": friendly_message
+        }
+
+    # ===== 通过验证，执行正常工作流 =====
     app = build_workflow()
-    try:
-        return app.invoke({"transcript": transcript})
-    except Exception as e:
-        raise WorkflowError(f"纪要生成失败：{e}") from e
+    return app.invoke({"transcript": transcript})
